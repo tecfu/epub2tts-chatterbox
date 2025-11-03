@@ -600,6 +600,57 @@ def add_cover(cover_img, filename):
     except:
         print(f"Cover image {cover_img} not found")
 
+def validate_text_file(sourcefile, book_title, book_author, book_contents):
+    """
+    Validate that the text file contains required elements: title, author, and at least one chapter break.
+
+    Args:
+        sourcefile: Path to the source file
+        book_title: Extracted book title
+        book_author: Extracted book author
+        book_contents: List of chapter dictionaries
+
+    Raises:
+        SystemExit: If validation fails
+    """
+    errors = []
+
+    # Check if title was found (if it's still the filename, no title was extracted)
+    if book_title == sourcefile:
+        errors.append("- Missing 'Title:' line at the beginning of the file")
+
+    # Check if author was found
+    if book_author == "Unknown":
+        errors.append("- Missing 'Author:' line at the beginning of the file")
+
+    # Check if at least one chapter break was found
+    # We need to verify the file has at least one line starting with #
+    has_chapter_break = False
+    with open(sourcefile, "r", encoding="utf-8") as file:
+        for line in file:
+            if line.strip().startswith("#"):
+                has_chapter_break = True
+                break
+
+    if not has_chapter_break:
+        errors.append("- Missing at least one chapter break line starting with '#'")
+
+    # If there are any errors, display them and exit
+    if errors:
+        print("\n" + "="*70)
+        print("ERROR: Text file validation failed")
+        print("="*70)
+        print("\nThe text file must contain the following elements:\n")
+        print("1. A 'Title:' line at the beginning (e.g., 'Title: My Book')")
+        print("2. An 'Author:' line at the beginning (e.g., 'Author: John Doe')")
+        print("3. At least one chapter break line starting with '#' (e.g., '# Chapter 1')")
+        print("\nMissing elements:")
+        for error in errors:
+            print(error)
+        print("\nPlease correct the text file format and try again.")
+        print("="*70 + "\n")
+        sys.exit(1)
+
 def main():
     parser = argparse.ArgumentParser(
         prog="epub2tts-chatterbox",
@@ -646,6 +697,9 @@ def main():
         exit()
 
     book_contents, book_title, book_author, chapter_titles = get_book(args.sourcefile)
+
+    # Validate the text file before proceeding
+    validate_text_file(args.sourcefile, book_title, book_author, book_contents)
     if args.sample is not None:
         sample = args.sample
     else:
