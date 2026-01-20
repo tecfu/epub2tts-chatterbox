@@ -29,6 +29,18 @@ from pydub import AudioSegment
 import zipfile
 import warnings
 
+# Import EPUB export functions from the reusable library module
+from epub2tts_chatterbox.epub_export import (
+    export_epub,
+    export_epub_to_dict,
+    build_toc_map,
+    get_chapter_titles_by_method,
+    extract_chapter_content,
+    get_epub_cover,
+    preview_chapter_names,
+    export,
+)
+
 warnings.filterwarnings("ignore")
 
 namespaces = {
@@ -77,168 +89,6 @@ def format_time_adaptive(seconds):
         minutes = int((seconds % 3600) // 60)
         return f"{hours}h {minutes}m"
 
-def chap2text_epub(chap, item_id=None, toc=None):
-    """
-    Extract chapter title and paragraphs from an EPUB chapter.
-    
-    Args:
-        chap: The chapter content (HTML).
-        item_id: The ID of the item in the EPUB spine (for fallback naming).
-        toc: The EPUB's table of contents (for fallback title extraction).
-    
-    Returns:
-        tuple: (chapter_title_text, paragraphs)
-    """
-    blacklist = [
-        "[document]",
-        "noscript",
-        "header",
-        "html",
-        "meta",
-        "head",
-        "input",
-        "script",
-    ]
-    paragraphs = []
-    soup = BeautifulSoup(chap, "html.parser")
-
-    # Step 1: Try to find chapter title in heading tags (<h1>, <h2>, <h3>)
-    heading_tags = ['h1', 'h2', 'h3']
-    chapter_title_text = None
-    for tag in heading_tags:
-        heading = soup.find(tag)
-        if heading and heading.text.strip():
-            chapter_title_text = heading.text.strip()
-            print(f"Found title in <{tag}>: '{chapter_title_text}'")
-            break
-
-    # Step 2: If no heading found, try elements with common class names
-    if not chapter_title_text:
-        common_classes = ['chapter', 'chapter-title', 'title', 'heading']
-        for class_name in common_classes:
-            element = soup.find(class_=class_name)
-            if element and element.text.strip():
-                chapter_title_text = element.text.strip()
-                print(f"Found title in class '{class_name}': '{chapter_title_text}'")
-                break
-
-    # Step 3: Fallback to TOC if provided
-    if not chapter_title_text and toc and item_id:
-        for toc_item in toc:
-            if toc_item.href.split('#')[0] == item_id:
-                chapter_title_text = toc_item.title
-                print(f"Found title in TOC for item '{item_id}': '{chapter_title_text}'")
-                break
-
-    # Step 4: Fallback to item ID or generic name
-    if not chapter_title_text:
-        chapter_title_text = item_id.replace('.xhtml', '').replace('_', ' ').title() if item_id else None
-        print(f"No title found, using fallback: '{chapter_title_text}'")
-
-    # Remove footnotes (links with only numbers)
-    for a in soup.findAll("a", href=True):
-        if not any(char.isalpha() for char in a.text):
-            a.extract()
-
-    # Remove superscript numbers (e.g., footnote markers)
-    for sup in soup.findAll("sup"):
-        if sup.text.isdigit():
-            sup.extract()
-
-    # Extract paragraphs
-    chapter_paragraphs = soup.find_all("p")
-    if not chapter_paragraphs:
-        print(f"No <p> tags found in '{chapter_title_text or item_id}'. Trying <div>.")
-        chapter_paragraphs = soup.find_all("div")
-
-    for p in chapter_paragraphs:
-        paragraph_text = "".join(p.strings).strip()
-        if paragraph_text:
-            paragraphs.append(paragraph_text)
-
-    return chapter_title_text, paragraphs
-
-def get_epub_cover(epub_path):
-    try:
-        with zipfile.ZipFile(epub_path) as z:
-            t = etree.fromstring(z.read("META-INF/container.xml"))
-            rootfile_path =  t.xpath("/u:container/u:rootfiles/u:rootfile",
-                                        namespaces=namespaces)[0].get("full-path")
-
-            t = etree.fromstring(z.read(rootfile_path))
-            cover_meta = t.xpath("//opf:metadata/opf:meta[@name='cover']",
-                                        namespaces=namespaces)
-            if not cover_meta:
-                print("No cover image found.")
-                return None
-            cover_id = cover_meta[0].get("content")
-
-            cover_item = t.xpath("//opf:manifest/opf:item[@id='" + cover_id + "']",
-                                            namespaces=namespaces)
-            if not cover_item:
-                print("No cover image found.")
-                return None
-            cover_href = cover_item[0].get("href")
-            cover_path = os.path.join(os.path.dirname(rootfile_path), cover_href)
-            if os.name == 'nt' and '\\' in cover_path:
-                cover_path = cover_path.replace("\\", "/")
-            return z.open(cover_path)
-    except FileNotFoundError:
-        print(f"Could not get cover image of {epub_path}")
-
-def export(book, sourcefile):
-    book_contents = []
-    cover_image = get_epub_cover(sourcefile)
-    image_path = None
-
-    if cover_image is not None:
-        image = Image.open(cover_image)
-        image_filename = sourcefile.replace(".epub", ".png")
-        image_path = os.path.join(image_filename)
-        image.save(image_path)
-        print(f"Cover image saved to {image_path}")
-
-    # Get the table of contents
-    toc = book.get_toc() if hasattr(book, 'get_toc') else []
-
-    spine_ids = [spine_tuple[0] for spine_tuple in book.spine if spine_tuple[1] == 'yes']
-    items = {item.get_id(): item for item in book.get_items() if item.get_type() == ebooklib.ITEM_DOCUMENT}
-
-    for id in spine_ids:
-        item = items.get(id)
-        if item is None:
-            continue
-        # Pass item_id and toc to chap2text_epub
-        chapter_title, chapter_paragraphs = chap2text_epub(item.get_content(), item_id=id, toc=toc)
-        book_contents.append({"title": chapter_title, "paragraphs": chapter_paragraphs})
-
-    outfile = sourcefile.replace(".epub", ".txt")
-    check_for_file(outfile)
-    print(f"Exporting {sourcefile} to {outfile}")
-    author = book.get_metadata("DC", "creator")[0][0]
-    booktitle = book.get_metadata("DC", "title")[0][0]
-
-    with open(outfile, "w", encoding='utf-8') as file:
-        file.write(f"Title: {booktitle}\n")
-        file.write(f"Author: {author}\n\n")
-        file.write(f"# Title\n")
-        file.write(f"{booktitle}, by {author}\n\n")
-        for i, chapter in enumerate(book_contents, start=1):
-            if not chapter["paragraphs"] or chapter["paragraphs"] == ['']:
-                continue
-            else:
-                # Use chapter title if available, otherwise fallback to "Part {i}"
-                title = chapter["title"] if chapter["title"] else f"Part {i}"
-                file.write(f"# {title}\n\n")
-                for paragraph in chapter["paragraphs"]:
-                    clean = re.sub(r'[\s\n]+', ' ', paragraph)
-                    clean = re.sub(r'[“”]', '"', clean)  # Curly double quotes to standard double quotes
-                    clean = re.sub(r'[‘’]', "'", clean)  # Curly single quotes to standard single quotes
-                    clean = re.sub(r'--', ', ', clean)
-                    clean = re.sub(r'—', ', ', clean)
-                    file.write(f"{clean}\n\n")
-
-    return book_contents
 
 def get_book(sourcefile):
     book_contents = []
@@ -684,6 +534,13 @@ def main():
         default=0.4,
         help="CFG weight for voice cloning (default: 0.4)",
     )
+    parser.add_argument(
+        "--naming",
+        type=str,
+        choices=['auto', 'toc', 'heading', 'class', 'fallback'],
+        default=None,
+        help="Chapter naming method: auto (default, shows preview), toc, heading, class, or fallback",
+    )
 
     args = parser.parse_args()
     print(args)
@@ -693,7 +550,7 @@ def main():
     #If we get an epub, export that to txt file, then exit
     if args.sourcefile.endswith(".epub"):
         book = epub.read_epub(args.sourcefile)
-        export(book, args.sourcefile)
+        export(book, args.sourcefile, naming_method=args.naming)
         exit()
 
     book_contents, book_title, book_author, chapter_titles = get_book(args.sourcefile)
