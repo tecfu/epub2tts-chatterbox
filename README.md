@@ -1,4 +1,6 @@
-> epub2tts-chatterbox is a free and open source python app to easily create a full-featured audiobook from an epub or text file using realistic voice-cloning text-to-speech by [Chatterbox](https://github.com/resemble-ai/chatterbox). CUDA compatible GPU is required, or Apple silicone.
+# epub2tts-chatterbox
+
+epub2tts-chatterbox is a free and open source Python app to easily create a full-featured audiobook from an epub or text file using realistic voice-cloning text-to-speech by [Chatterbox](https://github.com/resemble-ai/chatterbox). CUDA compatible GPU is required, or Apple silicone.
 
 ## 🚀 Features
 
@@ -8,14 +10,14 @@
 - [x] Resumes where it left off if interrupted
 - [x] NOTE: epub file must be DRM-free
 
-
 ## 📖 Usage
+
 <details>
-<summary> Usage instructions</summary>
+<summary>Usage instructions</summary>
 
 *NOTE:* If you want to specify where NLTK tokenizer will be stored (about 50mb), use an environment variable: `export NLTK_DATA="your/path/to/nltk_data"`
 
-## OPTIONAL - activate the virutal environment if using
+## OPTIONAL - activate the virtual environment if using
 1. `source .venv/bin/activate`
 
 ## FIRST - extract epub contents to text and cover image to png:
@@ -63,14 +65,42 @@ If you've found something new, please open an issue and be sure to include:
 
 ## 📦 Install
 
-Required Python version is 3.11.
+**Preferred method:** Use Docker (avoids Python dependency issues).
 
 *NOTE:* If you want to specify where NLTK tokenizer will be stored (about 50mb), use an environment variable: `export NLTK_DATA="your/path/to/nltk_data"`
 
-<details>
-<summary>MAC INSTALLATION</summary>
+### Docker Installation (Recommended)
 
-This installation requires Python < 3.12 and [Homebrew](https://brew.sh/) (I use homebrew to install espeak, [pyenv](https://stackoverflow.com/questions/36968425/how-can-i-install-multiple-versions-of-python-on-latest-os-x-and-use-them-in-par) and ffmpeg).
+Docker provides a consistent environment with Python 3.11 and all dependencies pre-installed.
+
+**Build the Docker image:**
+```bash
+docker build -t epub2tts-chatterbox .
+```
+
+**Convert an EPUB file:**
+```bash
+docker run --rm -v $(pwd):/data epub2tts-chatterbox /data/mybook.epub
+```
+
+**Convert with voice cloning:**
+```bash
+docker run --rm -v $(pwd):/data epub2tts-chatterbox /data/mybook.txt --sample /data/voice.wav --cover /data/cover.png
+```
+
+**Convert without chapter titles:**
+```bash
+docker run --rm -v $(pwd):/data epub2tts-chatterbox /data/mybook.txt --notitles
+```
+
+**All Docker options:**
+- `--rm` - Remove container after exit
+- `-v $(pwd):/data` - Mount current directory to /data in container
+- First run will download Chatterbox TTS model (~10GB)
+
+### MAC INSTALLATION
+
+This installation requires Python 3.11 (specifically) and [Homebrew](https://brew.sh/) (I use homebrew to install espeak, [pyenv](https://stackoverflow.com/questions/36968425/how-can-i-install-multiple-versions-of-python-on-latest-os-x-and-use-them-in-par) and ffmpeg).
 
 ```
 #install dependencies
@@ -84,28 +114,23 @@ pyenv local 3.11
 python -m venv .venv && source .venv/bin/activate
 pip install .
 ```
-</details>
 
-<details>
-<summary>LINUX INSTALLATION</summary>
+### LINUX INSTALLATION
 
-These instructions are for Ubuntu 24.04.1 LTS and 22.04  (20.04 showed some depedency issues), but should work (with appropriate package installer mods) for just about any distro. Ensure you have `ffmpeg` installed before use.
+These instructions are for Ubuntu 24.04.1 LTS and 22.04  (20.04 showed some depedency issues), but should work (with appropriate package installer mods) for just about any distro. Ensure you have `ffmpeg` installed before use. Requires Python 3.11.
 
 ```
 #install dependencies
-sudo apt install espeak-ng ffmpeg python3-venv
+sudo apt install espeak-ng ffmpeg python3-venv python3.11
 #clone the repo
 git clone https://github.com/aedocw/epub2tts-chatterbox
 cd epub2tts-chatterbox
-#OPTIONAL - install this in a virtual environment
-python3 -m venv .venv && source .venv/bin/activate
+#OPTIONAL - install this in a virtual environment using Python 3.11
+python3.11 -m venv .venv && source .venv/bin/activate
 pip install .
 ```
 
-</details>
-
-<details>
-<summary>WINDOWS INSTALLATION</summary>
+### WINDOWS INSTALLATION
 
 Running epub2tts in WSL2 with Ubuntu 22 is the easiest approach, but these steps should work for running directly in windows.
 
