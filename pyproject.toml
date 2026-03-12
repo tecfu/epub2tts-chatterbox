@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "epub2tts-chatterbox"
+version = "1.2.2"
+description = "Tool to read an epub to audiobook using chatterbox TTS"
+authors = [
+    {name = "Christopher Aedo", email = "c@aedo.dev"}
+]
+license = {text = "GPL 3.0"}
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "beautifulsoup4",
+    "ebooklib",
+    "chatterbox-tts>=0.1.2",
+    "lxml",
+    "mutagen",
+    "nltk",
+    "numpy",
+    "pillow",
+    "pydub",
+    "soundfile",
+    "tqdm",
+]
+
+[project.scripts]
+epub2tts-chatterbox = "epub2tts_chatterbox:main"
+
+[project.urls]
+Homepage = "https://github.com/tecfu/epub2tts-chatterbox"

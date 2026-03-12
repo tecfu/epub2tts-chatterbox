@@ -7,6 +7,5 @@ nltk
 numpy
 pillow
 pydub
-setuptools==79.0.1
 soundfile
 tqdm
