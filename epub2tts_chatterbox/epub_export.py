@@ -264,7 +264,7 @@ def preview_chapter_names(book, sourcefile=None, max_samples=6):
         titles = get_chapter_titles_by_method(
             item.get_content(),
             item_name=item.get_name(),
-            item_id=id,
+            item_id=spine_id,
             toc_map=toc_map
         )
         samples.append(titles)
