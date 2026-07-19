@@ -5,12 +5,15 @@ import sys
 if sys.platform == 'darwin':
     os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 import argparse
+import contextlib
+import io
 import re
 import subprocess
 import time
 import torch
 import warnings
 import torchaudio as ta
+from tqdm import tqdm
 from chatterbox.tts import ChatterboxTTS
 
 from ebooklib import epub
@@ -139,22 +142,20 @@ def append_silence(tempfile, duration=1200):
     # Save the combined audio back to file
     combined.export(tempfile, format="flac")
 
-def chatterbox_read(sentences, sample, filenames, model, exaggeration, cfg_weight):
+def chatterbox_read(sentences, sample, filenames, model, exaggeration, cfg_weight, progress_bar=None):
     for i, sent in enumerate(sentences):
         clean_sent = conditional_sentence_case(sent.strip())
         max_attempts = 3
         # This "try 3 times" loop is probably not needed, actual failure was from a torch recursive error that was fixed
         for attempt in range(1, max_attempts + 1):
             try:
-                if sample == "none":
-                    #print(f"Generating audio for sentence: {clean_sent}")
-                    wav = model.generate(clean_sent)
-                else:
-                    #print(f"Generating audio for sentence: {clean_sent}")
-                    # generate(self, text, repetition_penalty=1.2, min_p=0.05, top_p=1.0, audio_prompt_path=None, exaggeration=0.5, cfg_weight=0.5, temperature=0.8)
-                    wav = model.generate(clean_sent, audio_prompt_path=sample, exaggeration=exaggeration, cfg_weight=cfg_weight)
-                
-                #print(f"Saving audio to {filenames[i]}")
+                # Suppress Chatterbox's internal per-sentence tqdm sampling bars
+                with contextlib.redirect_stderr(io.StringIO()):
+                    if sample == "none":
+                        wav = model.generate(clean_sent)
+                    else:
+                        wav = model.generate(clean_sent, audio_prompt_path=sample, exaggeration=exaggeration, cfg_weight=cfg_weight)
+
                 ta.save(filenames[i], wav, model.sr)
                 # confirm the file was created
                 if not os.path.isfile(filenames[i]):
@@ -166,6 +167,9 @@ def chatterbox_read(sentences, sample, filenames, model, exaggeration, cfg_weigh
                     print(f"Attempt {attempt} failed for sentence '{clean_sent}': {e} -- Retrying...")
                 else:
                     print(f"Failed to process sentence '{clean_sent}' after {max_attempts} attempts. Error: {e}")
+
+        if progress_bar is not None:
+            progress_bar.update(1)
 
 def combine_short_paragraphs(paragraphs, min_words=6):
     """
@@ -284,7 +288,6 @@ def read_book(book_contents, sample, notitles, exaggeration, cfg_weight):
                 timing_info = f" | Elapsed: {elapsed_str}"
 
             print(f"Chapter ({i}/{len(book_contents)}): {chapter['title']}{timing_info}\n")
-            print(f"Section name: \"{chapter['title']}\"")
             if chapter["title"] == "":
                 chapter["title"] = "blank"
             if chapter["title"] != "Title" and notitles != True:
@@ -293,38 +296,41 @@ def read_book(book_contents, sample, notitles, exaggeration, cfg_weight):
             # Combine short paragraphs first
             combined_paragraphs = combine_short_paragraphs(chapter["paragraphs"])
 
-            for pindex, paragraph in enumerate(combined_paragraphs):
-                ptemp = f"pgraphs{pindex}.flac"
-                if os.path.isfile(ptemp):
-                    print(f"{ptemp} exists, skipping to next paragraph")
-                else:
-                    sentences = sent_tokenize(paragraph)
-                    # Combine short sentences within the paragraph
-                    sentences = combine_short_sentences(sentences)
-                    filenames = [
-                        "sntnc" + str(z) + ".wav" for z in range(len(sentences))
-                    ]
-                    chatterbox_read(sentences, sample, filenames, model, exaggeration, cfg_weight)
-                    append_silence(filenames[-1], paragraphpause)
-                    # combine sentences in paragraph
-                    sorted_files = sorted(filenames, key=sort_key)
-                    #if os.path.exists("sntnc0.wav"):
-                    #    sorted_files.insert(0, "sntnc0.wav")
-                    combined = AudioSegment.empty()
-                    for file in sorted_files:
-                        # try/except prob not needed, actual failure was from a torch recursive error that was fixed
-                        try:
-                            combined += AudioSegment.from_file(file)
-                        except Exception as e:
-                            print("FAILURE at sorted file combine")
-                            print(f"File: {file}")
-                            print(f"sorted files: {sorted_files}")
-                            print(f"Unsorted: {filenames}")
-                            sys.exit()
-                    combined.export(ptemp, format="flac")
-                    for file in sorted_files:
-                        os.remove(file)
-                files.append(ptemp)
+            # Pre-calculate sentences per paragraph for accurate progress tracking
+            paragraph_sentences = [
+                combine_short_sentences(sent_tokenize(p))
+                for p in combined_paragraphs
+            ]
+            total_sentences = sum(len(s) for s in paragraph_sentences)
+
+            with tqdm(total=total_sentences, desc=f"  {chapter['title'][:50]}", unit="sent", leave=True) as pbar:
+                for pindex, (paragraph, sentences) in enumerate(zip(combined_paragraphs, paragraph_sentences)):
+                    ptemp = f"pgraphs{pindex}.flac"
+                    if os.path.isfile(ptemp):
+                        pbar.update(len(sentences))  # advance past already-done paragraph
+                    else:
+                        filenames = [
+                            "sntnc" + str(z) + ".wav" for z in range(len(sentences))
+                        ]
+                        chatterbox_read(sentences, sample, filenames, model, exaggeration, cfg_weight, pbar)
+                        append_silence(filenames[-1], paragraphpause)
+                        # combine sentences in paragraph
+                        sorted_files = sorted(filenames, key=sort_key)
+                        combined = AudioSegment.empty()
+                        for file in sorted_files:
+                            # try/except prob not needed, actual failure was from a torch recursive error that was fixed
+                            try:
+                                combined += AudioSegment.from_file(file)
+                            except Exception as e:
+                                print("FAILURE at sorted file combine")
+                                print(f"File: {file}")
+                                print(f"sorted files: {sorted_files}")
+                                print(f"Unsorted: {filenames}")
+                                sys.exit()
+                        combined.export(ptemp, format="flac")
+                        for file in sorted_files:
+                            os.remove(file)
+                    files.append(ptemp)
             # combine paragraphs into chapter
             append_silence(files[-1], 2000)
             combined = AudioSegment.empty()
