@@ -5,52 +5,24 @@ import sys
 if sys.platform == 'darwin':
     os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
 import argparse
-import time
-import numpy as np
 import re
-import soundfile
 import subprocess
+import time
 import torch
 import warnings
-from tqdm import tqdm
 import torchaudio as ta
 from chatterbox.tts import ChatterboxTTS
 
-from bs4 import BeautifulSoup
-import ebooklib
 from ebooklib import epub
-import soundfile as sf
-from lxml import etree
 from mutagen import mp4
 import nltk
 from nltk.tokenize import sent_tokenize
-from PIL import Image
 from pydub import AudioSegment
-import zipfile
-import warnings
 
 # Import EPUB export functions from the reusable library module
-from epub2tts_chatterbox.epub_export import (
-    export_epub,
-    export_epub_to_dict,
-    build_toc_map,
-    get_chapter_titles_by_method,
-    extract_chapter_content,
-    get_epub_cover,
-    preview_chapter_names,
-    export,
-)
+from epub2tts_chatterbox.epub_export import export
 
 warnings.filterwarnings("ignore")
-
-namespaces = {
-   "calibre":"http://calibre.kovidgoyal.net/2009/metadata",
-   "dc":"http://purl.org/dc/elements/1.1/",
-   "dcterms":"http://purl.org/dc/terms/",
-   "opf":"http://www.idpf.org/2007/opf",
-   "u":"urn:oasis:names:tc:opendocument:xmlns:container",
-   "xsi":"http://www.w3.org/2001/XMLSchema-instance",
-}
 
 warnings.filterwarnings("ignore", module="ebooklib.epub")
 
@@ -276,7 +248,6 @@ def read_book(book_contents, sample, notitles, exaggeration, cfg_weight):
         device = "mps"
     else:
         device = "cpu"
-    current_device = torch.device(device)
     print(f"Attempting to use device: {device}")
     model = ChatterboxTTS.from_pretrained(device=device)
 
@@ -290,7 +261,7 @@ def read_book(book_contents, sample, notitles, exaggeration, cfg_weight):
         paragraphpause = 600  # default pause between paragraphs in ms
         files = []
         partname = f"part{i}.flac"
-        print(f"\n\n")
+        print("\n\n")
 
         if os.path.isfile(partname):
             print(f"{partname} exists, skipping to next chapter")
@@ -344,7 +315,7 @@ def read_book(book_contents, sample, notitles, exaggeration, cfg_weight):
                         # try/except prob not needed, actual failure was from a torch recursive error that was fixed
                         try:
                             combined += AudioSegment.from_file(file)
-                        except:
+                        except Exception as e:
                             print("FAILURE at sorted file combine")
                             print(f"File: {file}")
                             print(f"sorted files: {sorted_files}")
@@ -396,7 +367,8 @@ def make_m4b(files, sourcefile, speaker):
     speaker_file = os.path.basename(speaker)
     basefile = sourcefile.replace(".txt", "")
     outputm4a = f"{basefile}.m4a"
-    outputm4b = f"{basefile} ({speaker_file.split('.wav')[0]}).m4b"
+    speaker_name = os.path.splitext(speaker_file)[0]
+    outputm4b = f"{basefile} ({speaker_name}).m4b"
     with open(filelist, "w") as f:
         for filename in files:
             filename = filename.replace("'", "'\\''")
@@ -439,16 +411,19 @@ def make_m4b(files, sourcefile, speaker):
     return outputm4b
 
 def add_cover(cover_img, filename):
+    if not cover_img:
+        return
     try:
         if os.path.isfile(cover_img):
             m4b = mp4.MP4(filename)
-            cover_image = open(cover_img, "rb").read()
+            with open(cover_img, "rb") as f:
+                cover_image = f.read()
             m4b["covr"] = [mp4.MP4Cover(cover_image)]
             m4b.save()
         else:
             print(f"Cover image {cover_img} not found")
-    except:
-        print(f"Cover image {cover_img} not found")
+    except Exception as e:
+        print(f"Failed to add cover image {cover_img}: {e}")
 
 def validate_text_file(sourcefile, book_title, book_author, book_contents):
     """
@@ -551,7 +526,7 @@ def main():
     if args.sourcefile.endswith(".epub"):
         book = epub.read_epub(args.sourcefile)
         export(book, args.sourcefile, naming_method=args.naming)
-        exit()
+        sys.exit()
 
     book_contents, book_title, book_author, chapter_titles = get_book(args.sourcefile)
 
