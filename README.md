@@ -15,7 +15,7 @@
 
 *NOTE:* If you want to specify where NLTK tokenizer will be stored (about 50mb), use an environment variable: `export NLTK_DATA="your/path/to/nltk_data"`
 
-## OPTIONAL - activate the virutal environment if using
+## OPTIONAL - activate the virtual environment if using
 1. `source .venv/bin/activate`
 
 ## FIRST - extract epub contents to text and cover image to png:
