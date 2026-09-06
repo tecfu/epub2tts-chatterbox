@@ -1,6 +1,4 @@
-# epub2tts-chatterbox
-
-epub2tts-chatterbox is a free and open source Python app to easily create a full-featured audiobook from an epub or text file using realistic voice-cloning text-to-speech by [Chatterbox](https://github.com/resemble-ai/chatterbox). CUDA compatible GPU is required, or Apple silicone.
+> epub2tts-chatterbox is a free and open source python app to easily create a full-featured audiobook from an epub or text file using realistic voice-cloning text-to-speech by [Chatterbox](https://github.com/resemble-ai/chatterbox). CUDA compatible GPU is required, or Apple silicon.
 
 ## 🚀 Features
 
@@ -10,10 +8,10 @@ epub2tts-chatterbox is a free and open source Python app to easily create a full
 - [x] Resumes where it left off if interrupted
 - [x] NOTE: epub file must be DRM-free
 
-## 📖 Usage
 
+## 📖 Usage
 <details>
-<summary>Usage instructions</summary>
+<summary> Usage instructions</summary>
 
 *NOTE:* If you want to specify where NLTK tokenizer will be stored (about 50mb), use an environment variable: `export NLTK_DATA="your/path/to/nltk_data"`
 
@@ -57,7 +55,7 @@ If you've found something new, please open an issue and be sure to include:
 <details>
 <summary>Release notes </summary>
 
-* 20250224: Changed to read individual setences rather than entire paragraph, for reading speed consistency
+* 20250224: Changed to read individual sentences rather than entire paragraph, for reading speed consistency
 * 20250221: Added `--notitles` option
 * 20250216: Initial release
 
@@ -65,13 +63,15 @@ If you've found something new, please open an issue and be sure to include:
 
 ## 📦 Install
 
-**Preferred method:** Use Docker (avoids Python dependency issues).
+Required Python version is 3.12.
 
 *NOTE:* If you want to specify where NLTK tokenizer will be stored (about 50mb), use an environment variable: `export NLTK_DATA="your/path/to/nltk_data"`
 
-### Docker Installation (Recommended)
 
-Docker provides a consistent environment with Python 3.11 and all dependencies pre-installed.
+<details>
+<summary>Docker Installation (Recommended)</summary>
+
+Docker provides a consistent environment with Python 3.12 and all dependencies pre-installed. GPU support requires the NVIDIA Container Toolkit when using CUDA.
 
 **Build the Docker image:**
 ```bash
@@ -85,7 +85,7 @@ docker run --rm -v $(pwd):/data epub2tts-chatterbox /data/mybook.epub
 
 **Convert with voice cloning:**
 ```bash
-docker run --rm -v $(pwd):/data epub2tts-chatterbox /data/mybook.txt --sample /data/voice.wav --cover /data/cover.png
+docker run --rm -v $(pwd):/data --gpus all epub2tts-chatterbox /data/mybook.txt --sample /data/voice.wav --cover /data/cover.png
 ```
 
 **Convert without chapter titles:**
@@ -93,14 +93,19 @@ docker run --rm -v $(pwd):/data epub2tts-chatterbox /data/mybook.txt --sample /d
 docker run --rm -v $(pwd):/data epub2tts-chatterbox /data/mybook.txt --notitles
 ```
 
-**All Docker options:**
-- `--rm` - Remove container after exit
-- `-v $(pwd):/data` - Mount current directory to /data in container
-- First run will download Chatterbox TTS model (~10GB)
+**Notes:**
+- `--rm` removes the container after exit
+- `-v $(pwd):/data` mounts the current directory to `/data` in the container
+- First run downloads the Chatterbox TTS model (~several GB)
+- For NVIDIA GPUs, pass `--gpus all` (requires nvidia-container-toolkit)
+- Apple Silicon: omit `--gpus`; MPS is not available inside standard Linux containers
 
-### MAC INSTALLATION
+</details>
 
-This installation requires Python 3.11 (specifically) and [Homebrew](https://brew.sh/) (I use homebrew to install espeak, [pyenv](https://stackoverflow.com/questions/36968425/how-can-i-install-multiple-versions-of-python-on-latest-os-x-and-use-them-in-par) and ffmpeg).
+<details>
+<summary>MAC INSTALLATION</summary>
+
+This installation requires Python < 3.12 and [Homebrew](https://brew.sh/) (I use homebrew to install espeak, [pyenv](https://stackoverflow.com/questions/36968425/how-can-i-install-multiple-versions-of-python-on-latest-os-x-and-use-them-in-par) and ffmpeg).
 
 ```
 #install dependencies
@@ -114,25 +119,30 @@ pyenv local 3.11
 python -m venv .venv && source .venv/bin/activate
 pip install .
 ```
+</details>
 
-### LINUX INSTALLATION
+<details>
+<summary>LINUX INSTALLATION</summary>
 
-These instructions are for Ubuntu 24.04.1 LTS and 22.04  (20.04 showed some depedency issues), but should work (with appropriate package installer mods) for just about any distro. Ensure you have `ffmpeg` installed before use. Requires Python 3.11.
+These instructions are for Ubuntu 24.04.1 LTS and 22.04  (20.04 showed some dependency issues), but should work (with appropriate package installer mods) for just about any distro. Ensure you have `ffmpeg` installed before use.
 
 ```
 #install dependencies
-sudo apt install espeak-ng ffmpeg python3-venv python3.11
+sudo apt install espeak-ng ffmpeg python3-venv
 #clone the repo
 git clone https://github.com/aedocw/epub2tts-chatterbox
 cd epub2tts-chatterbox
-#OPTIONAL - install this in a virtual environment using Python 3.11
-python3.11 -m venv .venv && source .venv/bin/activate
+#OPTIONAL - install this in a virtual environment
+python3 -m venv .venv && source .venv/bin/activate
 pip install .
 ```
 
-### WINDOWS INSTALLATION
+</details>
 
-Running epub2tts in WSL2 with Ubuntu 22 is the easiest approach, but these steps should work for running directly in windows.
+<details>
+<summary>WINDOWS INSTALLATION</summary>
+
+Running epub2tts-chatterbox in WSL2 with Ubuntu 22 is the easiest approach, but these steps should work for running directly in windows.
 
 (TBD)
 
